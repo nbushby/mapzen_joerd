@@ -5,14 +5,17 @@ from itertools import product
 from argparse import ArgumentParser
 from os.path import join, splitext
 
-import tempfile, shutil, urllib, io, sys, subprocess
+import tempfile, shutil, urllib.request, io, sys, subprocess
 import unittest
 
-# four formats are available, let's use GeoTIFF
-tile_url = 'https://tile.mapzen.com/mapzen/terrain/v1/geotiff/{z}/{x}/{y}.tif?api_key={k}'
+# Requires GDAL to be on system: https://gdal.org/download.html
 
-# default API key, please set your own
-default_api_key = 'mapzen-SPsSJJY'
+# Example: python collect.py --bounds 37.8434 -122.3193 37.7517 -122.0927 --zoom 12 output_path=merged.geotiff
+
+# Mapzen is no more
+# available AMZN S3 urls at: https://github.com/tilezen/joerd/blob/master/docs/use-service.md 
+#   See 'Additional Amazon S3 Endpoints'
+tile_url = 'https://s3.amazonaws.com/elevation-tiles-prod/geotiff/{z}/{x}/{y}.tif'
 
 def mercator(lat, lon, zoom):
     ''' Convert latitude, longitude to z/x/y tile coordinate at given zoom.
@@ -46,7 +49,7 @@ def tiles(zoom, lat1, lon1, lat2, lon2):
 
     return tiles
 
-def download(output_path, tiles, api_key, verbose=True):
+def download(output_path, tiles, verbose=True):
     ''' Download list of tiles to a temporary directory and return its name.
     '''
     dir = tempfile.mkdtemp(prefix='collected-')
@@ -58,7 +61,7 @@ def download(output_path, tiles, api_key, verbose=True):
         files = []
 
         for (z, x, y) in tiles:
-            response = urllib.urlopen(tile_url.format(z=z, x=x, y=y, k=api_key))
+            response = urllib.request.urlopen(tile_url.format(z=z, x=x, y=y))
             if response.getcode() != 200:
                 raise RuntimeError('No such tile: {}'.format((z, x, y)))
             if verbose:
@@ -113,15 +116,15 @@ class TestCollect (unittest.TestCase):
                 (12, 656, 1582),
                 (12, 657, 1582),
                 (12, 658, 1582),
-                ], default_api_key, False)
+                ], False)
 
             self.assertEqual(len(rmtree.mock_calls), 0)
             self.assertEqual(len(check_call.mock_calls), 0)
 
             self.assertEqual(urlopen.mock_calls[::3], [
-                mock.call('https://tile.mapzen.com/mapzen/terrain/v1/geotiff/12/656/1582.tif?api_key=mapzen-SPsSJJY'),
-                mock.call('https://tile.mapzen.com/mapzen/terrain/v1/geotiff/12/657/1582.tif?api_key=mapzen-SPsSJJY'),
-                mock.call('https://tile.mapzen.com/mapzen/terrain/v1/geotiff/12/658/1582.tif?api_key=mapzen-SPsSJJY')
+                mock.call('https://tile.mapzen.com/mapzen/terrain/v1/geotiff/12/656/1582.tif'),
+                mock.call('https://tile.mapzen.com/mapzen/terrain/v1/geotiff/12/657/1582.tif'),
+                mock.call('https://tile.mapzen.com/mapzen/terrain/v1/geotiff/12/658/1582.tif')
                 ])
 
             move.assert_called_once_with('/tmp', '/tmp/output')
@@ -142,14 +145,14 @@ class TestCollect (unittest.TestCase):
                 (12, 656, 1582),
                 (12, 657, 1582),
                 (12, 658, 1582),
-                ], default_api_key, False)
+                ], False)
 
             rmtree.assert_called_once_with(tempfile.mkdtemp.return_value)
 
             self.assertEqual(urlopen.mock_calls[::3], [
-                mock.call('https://tile.mapzen.com/mapzen/terrain/v1/geotiff/12/656/1582.tif?api_key=mapzen-SPsSJJY'),
-                mock.call('https://tile.mapzen.com/mapzen/terrain/v1/geotiff/12/657/1582.tif?api_key=mapzen-SPsSJJY'),
-                mock.call('https://tile.mapzen.com/mapzen/terrain/v1/geotiff/12/658/1582.tif?api_key=mapzen-SPsSJJY')
+                mock.call('https://tile.mapzen.com/mapzen/terrain/v1/geotiff/12/656/1582.tif'),
+                mock.call('https://tile.mapzen.com/mapzen/terrain/v1/geotiff/12/657/1582.tif'),
+                mock.call('https://tile.mapzen.com/mapzen/terrain/v1/geotiff/12/658/1582.tif')
                 ])
 
             check_call.assert_called_once_with(['gdal_merge.py', '-o', '/tmp/temp.tif', '/tmp/tile.tif', '/tmp/tile.tif', '/tmp/tile.tif'])
@@ -170,9 +173,6 @@ parser.add_argument('--bounds', metavar='DEG', type=float, nargs=4,
 parser.add_argument('--zoom', type=int, default=12,
                     help='Map zoom level given as integer. Defaults to 12.')
 
-parser.add_argument('--mapzen_api_key', default=None, required=True,
-                    help='Mapzen API key required to use the terrain tile service. See: https://mapzen.com/documentation/overview/#developer-accounts-and-api-keys.')
-
 parser.add_argument('output_path', help='Output GeoTIFF filename or local directory name.')
 
 if __name__ == '__main__':
@@ -184,4 +184,4 @@ if __name__ == '__main__':
         result = unittest.TextTestRunner(verbosity=2).run(suite)
         exit(0 if result.wasSuccessful() else 1)
 
-    download(args.output_path, tiles(args.zoom, *args.bounds), args.mapzen_api_key)
+    download(args.output_path, tiles(args.zoom, *args.bounds))
