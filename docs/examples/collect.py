@@ -10,7 +10,7 @@ import unittest
 
 # Requires GDAL to be on system: https://gdal.org/download.html
 
-# Example: python collect.py --bounds 37.8434 -122.3193 37.7517 -122.0927 --zoom 12 output_path=merged.geotiff
+# Example: python collect.py --bounds 37.8434 -122.3193 37.7517 -122.0927 --zoom 12 merged.tiff
 
 # Mapzen is no more
 # available AMZN S3 urls at: https://github.com/tilezen/joerd/blob/master/docs/use-service.md 
